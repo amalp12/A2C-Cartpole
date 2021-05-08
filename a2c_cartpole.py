@@ -198,9 +198,9 @@ class A2CAgent():
         # Instead of having the critic to learn the Q values, we make him learn the Advantage values.
         advantage = self.q_values - values
         self.critic.zero_grad()
-        #dummy = torch.zeros(size = advantage.shape, dtype = torch.float32 )
-        #loss = self.critic.loss(dummy, advantage)
-        loss = advantage.mean()
+        dummy = torch.zeros(size = advantage.shape, dtype = torch.float32 )
+        loss = self.critic.loss(dummy, advantage)
+        
         loss.backward()
         self.critic.optimizer.step() 
             
