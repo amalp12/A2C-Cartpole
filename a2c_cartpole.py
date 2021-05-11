@@ -17,7 +17,7 @@ warnings.simplefilter("error")
 GAMMA = 0.8
 LEARNING_RATE = 0.001
 MEM_CAPACITY = 520
-TRAIN_EPISODES = 1000
+TRAIN_EPISODES = 10000
 HIDDEN_SIZE = 40
 class Memory():
     def __init__(self, max_capacity=2000):
@@ -76,7 +76,7 @@ class Actor(nn.Module):
         t = F.relu(self.Layer_1(torch.tensor([observations], dtype =torch.float32)))
         t = F.relu(self.Layer_2(t))
         t = F.relu(self.Layer_3(t))
-        t = F.softmax(self.Layer_4(t), dim=1)
+        t = F.log_softmax(self.Layer_4(t), dim=1)
         if probabilities:
             prediction = t
         else :
@@ -158,7 +158,8 @@ class A2CAgent():
             observation = list(self.env.reset())
             total_reward = 0
             for t in range(500):
-                action_probs = self.actor.forward(observation)
+                log_action_probs = self.actor.forward(observation)
+                action_probs = torch.exp(log_action_probs)
                 distrubution = torch.distributions.Categorical(probs=action_probs)
                 action = distrubution.sample()
                 value = self.critic.forward(observation,action)
@@ -174,7 +175,7 @@ class A2CAgent():
                     self.train_cnt+=1
                     print(f"Training Episode finished ({self.train_cnt} of {TRAIN_EPISODES}).. Total Reward is : {total_reward}.")
                     last_q = self.critic.forward(next_observation, action)
-                    self.train(t, torch.tensor([-50]))
+                    self.train(t, torch.tensor([-100]))
                     episode_rewards.append(total_reward)
                     observation= self.env.reset()
                     break
@@ -186,12 +187,12 @@ class A2CAgent():
         values = deque()
         for i in reversed(range(t)):
             values.appendleft(self.memory.values[i])
-        values = torch.stack(list(values),0)
+        values = torch.stack(list(values),1)
         q_values = deque()
         for i in reversed(range(t)):
             q_val = self.memory.rewards[i]+self.discount_rate * q_val  
             q_values.appendleft(q_val)
-        self.q_values = torch.stack(list(q_values),0)
+        self.q_values = torch.stack(list(q_values),1)
         # Instead of having the critic to learn the Q values, we make him learn the Advantage values.
         advantage = self.q_values - values
         loss = advantage.pow(2).mean()
@@ -206,7 +207,7 @@ class A2CAgent():
         log_vals = []
         for i in range(t):
             log_vals.append(self.memory.log_probs[i])
-        log_vals = torch.stack(log_vals,0)
+        log_vals = torch.stack(log_vals,1)
         actor_loss = (-log_vals * self.q_values.detach()) *self.discount_rate 
         actor_loss = actor_loss.mean()
         actor_loss.backward()
@@ -234,7 +235,7 @@ episodes = 10
 for episode in range(episodes):
     observation = env.reset()
     for t in range(501):
-        action = agent.actor.forward(observation).argmax()
+        action = agent.actor.forward(observation,probabilities=False )
         next_observation, reward, done,  info = env.step(int(action))
         env.render()
 
