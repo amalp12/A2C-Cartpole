@@ -14,11 +14,11 @@ import warnings
 
 warnings.simplefilter("error")
 
-GAMMA = 0.8
-LEARNING_RATE = 0.001
+GAMMA = 0.9
+LEARNING_RATE = 0.0009
 MEM_CAPACITY = 520
 TRAIN_EPISODES = 10000
-HIDDEN_SIZE = 40
+HIDDEN_SIZE = 64
 class Memory():
     def __init__(self, max_capacity=2000):
 
@@ -173,6 +173,9 @@ class A2CAgent():
                 
                 if done:
                     self.train_cnt+=1
+                    if total_reward >= 499:
+                        self.save(self.actor, self.train_cnt)
+                        
                     print(f"Training Episode finished ({self.train_cnt} of {TRAIN_EPISODES}).. Total Reward is : {total_reward}.")
                     last_q = self.critic.forward(next_observation, action)
                     self.train(t, torch.tensor([-100]))
@@ -224,7 +227,8 @@ class A2CAgent():
         plt.ylabel("reward")
         plt.xlabel("episode")
         plt.show()
-
+    def save(self,primaryN,t):
+        torch.save(primaryN.state_dict(), f"{t}-best.dat")
 
 env = gym.make("CartPole-v1")
 agent = A2CAgent(env)
