@@ -1,3 +1,5 @@
+
+  
 import gym
 import torch
 import torch.nn as nn
@@ -12,11 +14,11 @@ import warnings
 
 warnings.simplefilter("error")
 
-GAMMA = 0.91
-LEARNING_RATE = 0.01
+GAMMA = 0.8
+LEARNING_RATE = 0.001
 MEM_CAPACITY = 520
 TRAIN_EPISODES = 1000
-HIDDEN_SIZE = 256
+HIDDEN_SIZE = 40
 class Memory():
     def __init__(self, max_capacity=2000):
 
@@ -63,18 +65,18 @@ class Actor(nn.Module):
     def __init__(self,learning_rate):
         super().__init__()
         self.Layer_1 = nn.Linear(in_features = 4, out_features=HIDDEN_SIZE )
-        #self.Layer_2 = nn.Linear(in_features = 64, out_features=256 )
-        #self.Layer_3 = nn.Linear(in_features = 256, out_features=64 )
-        self.Layer_2 = nn.Linear(in_features = HIDDEN_SIZE, out_features=2 )
+        self.Layer_2 = nn.Linear(in_features = HIDDEN_SIZE, out_features=HIDDEN_SIZE )
+        self.Layer_3 = nn.Linear(in_features = HIDDEN_SIZE, out_features=HIDDEN_SIZE )
+        self.Layer_4 = nn.Linear(in_features = HIDDEN_SIZE, out_features=2 )
         self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
 
 
     def forward(self, observations, probabilities = True):
         assert type(observations) != torch.Tensor
         t = F.relu(self.Layer_1(torch.tensor([observations], dtype =torch.float32)))
-        #t = F.relu(self.Layer_2(t))
-        #t = F.relu(self.Layer_3(t))
-        t = F.softmax(self.Layer_2(t), dim=1)
+        t = F.relu(self.Layer_2(t))
+        t = F.relu(self.Layer_3(t))
+        t = F.softmax(self.Layer_4(t), dim=1)
         if probabilities:
             prediction = t
         else :
@@ -89,15 +91,15 @@ class Critic(nn.Module):
     def __init__(self,learning_rate):
         super().__init__()
         self.Layer_state_input = nn.Linear(in_features = 4, out_features=HIDDEN_SIZE )
-        self.Layer_state_h1 = nn.Linear(in_features = HIDDEN_SIZE, out_features=1 )
-        #self.Layer_state_h2 = nn.Linear(in_features = 256, out_features=64 )
+        self.Layer_state_h1 = nn.Linear(in_features = HIDDEN_SIZE, out_features= HIDDEN_SIZE)
+        self.Layer_state_h2 = nn.Linear(in_features = HIDDEN_SIZE, out_features=HIDDEN_SIZE )
         
-        self.Layer_action_input = nn.Linear(in_features =1, out_features=32)
-        self.Layer_action_h1 = nn.Linear(in_features = 32, out_features=64 )
+        self.Layer_action_input = nn.Linear(in_features =1, out_features=HIDDEN_SIZE)
+        self.Layer_action_h1 = nn.Linear(in_features = HIDDEN_SIZE, out_features=HIDDEN_SIZE )
         
-        self.merged_input = nn.Linear(in_features= 128, out_features =256)
-        self.merged_h1 = nn.Linear(in_features= 256, out_features=64)
-        self.merged_output =  nn.Linear(in_features= 64, out_features=1)
+        self.merged_input = nn.Linear(in_features= int(2*HIDDEN_SIZE), out_features =HIDDEN_SIZE)
+        self.merged_h1 = nn.Linear(in_features= HIDDEN_SIZE, out_features=HIDDEN_SIZE)
+        self.merged_output =  nn.Linear(in_features= HIDDEN_SIZE, out_features=1)
         self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
 
         
@@ -106,7 +108,7 @@ class Critic(nn.Module):
 
         t = F.relu(self.Layer_state_input(torch.tensor(obervations, dtype= torch.float32)))
         t = F.relu(self.Layer_state_h1(t))
-        #t = F.relu(self.Layer_state_h2(t))
+        t = F.relu(self.Layer_state_h2(t))
          
         a = F.relu(self.Layer_action_input(torch.tensor([action], dtype= torch.float32)))
         a = F.relu(self.Layer_action_h1(a))
@@ -126,9 +128,8 @@ class A2CAgent():
         self.memory = Memory(MEM_CAPACITY)
 
         # Creating actor and critic networks
-        self.actor = Actor(learning_rate=.01)
-        self.critic = Critic(learning_rate=.09)
-
+        self.actor = Actor(learning_rate= self.learning_rate)
+        self.critic = Critic(learning_rate=self.learning_rate*10)
         self.train_cnt =0
     """
     actor takes in action and gives a 
@@ -141,7 +142,6 @@ class A2CAgent():
         self.memory.prepend_values(value)
     """
     In practice we would sample an action from the output of a network, apply this action in an environment, and then use log_prob to construct an equivalent loss function. Note that we use a negative because optimizers use gradient descent, whilst the rule above assumes gradient ascent. With a categorical policy, the code for implementing REINFORCE would be as follows:
-
     probs = policy_network(state)
     # Note that this is equivalent to what used to be called multinomial
     m = Categorical(probs)
@@ -168,23 +168,18 @@ class A2CAgent():
                 total_reward += reward
             
                 #self.env.render()
+                observation = next_observation
                 
                 if done:
                     self.train_cnt+=1
                     print(f"Training Episode finished ({self.train_cnt} of {TRAIN_EPISODES}).. Total Reward is : {total_reward}.")
                     last_q = self.critic.forward(next_observation, action)
-                    self.train(t, last_q)
+                    self.train(t, torch.tensor([-50]))
                     episode_rewards.append(total_reward)
+                    observation= self.env.reset()
                     break
-                observation = next_observation
         self.plot_graph(episode_rewards)
 
-
-    def choose(self):
-        pass
-
-    def save(self):
-        pass
     def train_critic(self,t,q_val):
         # Critic
         assert self.memory.rewards[t]==1
@@ -194,12 +189,12 @@ class A2CAgent():
         values = torch.stack(list(values),0)
         q_values = deque()
         for i in reversed(range(t)):
-            q_val = self.memory.rewards[i]+self.discount_rate * q_val  *(1-self.memory.dones[i])
+            q_val = self.memory.rewards[i]+self.discount_rate * q_val  
             q_values.appendleft(q_val)
         self.q_values = torch.stack(list(q_values),0)
         # Instead of having the critic to learn the Q values, we make him learn the Advantage values.
         advantage = self.q_values - values
-        loss = advantage.mean()
+        loss = advantage.pow(2).mean()
         loss.backward()
         self.critic.optimizer.step() 
         self.critic.zero_grad()
@@ -212,7 +207,7 @@ class A2CAgent():
         for i in range(t):
             log_vals.append(self.memory.log_probs[i])
         log_vals = torch.stack(log_vals,0)
-        actor_loss = self.discount_rate *(-log_vals * self.q_values.detach())
+        actor_loss = (-log_vals * self.q_values.detach()) *self.discount_rate 
         actor_loss = actor_loss.mean()
         actor_loss.backward()
         self.actor.optimizer.step()
@@ -221,12 +216,9 @@ class A2CAgent():
     def train(self,t, last_q):
         self.train_critic(t, last_q)
         self.train_actor(t)
-    def random_move(self):
-        action = self.env.action_space.sample()
-        return action
 
     def plot_graph(self,episode_rewards):
-        plt.scatter(np.arange(len(episode_rewards)), episode_rewards, s=2)
+        plt.plot(np.arange(len(episode_rewards)), episode_rewards)#,s=2)
         plt.title("Total reward per episode (episodic)")
         plt.ylabel("reward")
         plt.xlabel("episode")
