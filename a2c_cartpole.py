@@ -173,7 +173,7 @@ class A2CAgent():
                     self.train_cnt+=1
                     if total_reward >= 499:
                         self.save(self.actor, self.train_cnt)
-                        self.train(t, torch.tensor([500]))
+                        self.train(t, torch.tensor([1000]))
                     else:
                         self.train(t, torch.tensor([-100]))
 
