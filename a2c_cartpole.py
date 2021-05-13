@@ -12,7 +12,6 @@ import random
 import matplotlib.pyplot as plt
 import warnings
 
-warnings.simplefilter("error")
 
 GAMMA = 0.9
 LEARNING_RATE = 0.0009
@@ -76,7 +75,7 @@ class Actor(nn.Module):
         t = F.relu(self.Layer_1(torch.tensor([observations], dtype =torch.float32)))
         t = F.relu(self.Layer_2(t))
         t = F.relu(self.Layer_3(t))
-        t = F.log_softmax(self.Layer_4(t), dim=1)
+        t = F.softmax(self.Layer_4(t), dim=1)
         if probabilities:
             prediction = t
         else :
@@ -158,11 +157,10 @@ class A2CAgent():
             observation = list(self.env.reset())
             total_reward = 0
             for t in range(500):
-                log_action_probs = self.actor.forward(observation)
-                action_probs = torch.exp(log_action_probs)
+                action_probs = self.actor.forward(observation)
                 distrubution = torch.distributions.Categorical(probs=action_probs)
                 action = distrubution.sample()
-                value = self.critic.forward(observation,action)
+                value = self.critic.forward(observation,action) # Returns a value that predicts the future reward
                 next_observation, reward, done,  info =  env.step(int(action))
                 
                 self.store( distrubution.log_prob(action),reward,done,value)
@@ -175,10 +173,12 @@ class A2CAgent():
                     self.train_cnt+=1
                     if total_reward >= 499:
                         self.save(self.actor, self.train_cnt)
-                        
+                        self.train(t, torch.tensor([500]))
+                    else:
+                        self.train(t, torch.tensor([-100]))
+
                     print(f"Training Episode finished ({self.train_cnt} of {TRAIN_EPISODES}).. Total Reward is : {total_reward}.")
                     last_q = self.critic.forward(next_observation, action)
-                    self.train(t, torch.tensor([-100]))
                     episode_rewards.append(total_reward)
                     observation= self.env.reset()
                     break
