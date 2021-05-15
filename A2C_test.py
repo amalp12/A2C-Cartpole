@@ -11,7 +11,6 @@ import random
 import matplotlib.pyplot as plt
 import warnings
 
-warnings.simplefilter("error")
 
 GAMMA = 0.9
 LEARNING_RATE = 0.0009
@@ -50,15 +49,13 @@ env = gym.make('CartPole-v1')
 
 targetNet = Actor(0.01)
 
-#targetNet.load_state_dict(torch.load("92-best.dat"))
-#targetNet.load_state_dict(torch.load("100-best.dat"))
-#targetNet.load_state_dict(torch.load("100-best.dat"))
-targetNet.load_state_dict(torch.load("A2C_best.dat"))
+
+targetNet.load_state_dict(torch.load("A2C_weights.dat"))
 
 
 
 avg =[]
-for i_episode in range(20):
+for i_episode in range(50):
     
     observation = env.reset()
     for t in range(500):
@@ -71,6 +68,7 @@ for i_episode in range(20):
         #print("Not Done!")
         if done:
             avg.append(t+1)
+            observation = env.reset()
             print("Game Episode finished after {} timesteps".format(t+1))
             break
 
